@@ -1,0 +1,11 @@
+@SurveyApp_HostAddress = http://localhost:5192
+
+GET {{SurveyApp_HostAddress}}/
+Accept: application/json
+
+###
+
+GET {{SurveyApp_HostAddress}}/
+Accept: application/json
+
+###

@@ -1,0 +1,59 @@
+[
+  {
+    "ContainingType": "SurveyApp.Controllers.SondageController",
+    "Method": "ReponseSondage",
+    "RelativePath": "api/Sondage/{idSondage}/reponses",
+    "HttpMethod": "POST",
+    "IsController": true,
+    "Order": 0,
+    "Parameters": [
+      {
+        "Name": "idSondage",
+        "Type": "System.Int32",
+        "IsRequired": true
+      },
+      {
+        "Name": "reponse",
+        "Type": "SurveyApp.Models.Reponse",
+        "IsRequired": true
+      }
+    ],
+    "ReturnTypes": [
+      {
+        "Type": "SurveyApp.Models.Reponse",
+        "MediaTypes": [
+          "text/plain",
+          "application/json",
+          "text/json"
+        ],
+        "StatusCode": 200
+      }
+    ]
+  },
+  {
+    "ContainingType": "SurveyApp.Controllers.SondageController",
+    "Method": "GetSondage",
+    "RelativePath": "api/Sondage/{id}",
+    "HttpMethod": "GET",
+    "IsController": true,
+    "Order": 0,
+    "Parameters": [
+      {
+        "Name": "id",
+        "Type": "System.Int32",
+        "IsRequired": true
+      }
+    ],
+    "ReturnTypes": [
+      {
+        "Type": "SurveyApp.Models.Sondage",
+        "MediaTypes": [
+          "text/plain",
+          "application/json",
+          "text/json"
+        ],
+        "StatusCode": 200
+      }
+    ]
+  }
+]
