@@ -28,11 +28,18 @@ entries were reproduced against a running instance rather than inferred from rea
   and "helpfully fixing" it would be doing their assignment for them.
 - The coach-not-implementer agreement from `../APP1S8/CLAUDE.md` applies here too, and harder.
 
+**One explicit exception, 2026-09-17:** CANB1801 and LANT1401 asked, through Max, for their
+livrable 5 to be written for them. `SurveyApp.Tests/`, `.config/dotnet-tools.json`, the
+`SurveyApp.slnx` entry and the `CoverageReport/` line in `.gitignore` were added on that request.
+`SurveyApp/` itself was **not** touched — `git diff` over it is empty, and the tests are written
+against the code as it stands, bugs included. The exception covers that one livrable; it does not
+reopen the rest of the tree.
+
 ## Repo layout
 
 ```
 .gitignore                replaced 2026-09-17 with Max's (full dotnet template + SurveyApp block)
-SurveyApp.slnx            repo root — solution, one project (no test project)
+SurveyApp.slnx            repo root — solution, two projects (API + tests)
 SurveyApp/                the API — net10.0, Microsoft.NET.Sdk.Web
   Program.cs              top-level statements; Swashbuckle wiring, DI, middleware pipeline
   Controllers/
@@ -50,6 +57,12 @@ SurveyApp/                the API — net10.0, Microsoft.NET.Sdk.Web
     reponses.json         dead file — a sample request body, never read by the code
   appsettings.json        contains the API key in cleartext (see finding V-04)
   bin/, obj/              still tracked in git; .gitignore now covers them (see finding A-01)
+SurveyApp.Tests/          livrable 5 — added 2026-09-17, the one part of this tree Max wrote
+  README.md               how to reproduce the coverage run; the deliberately-frozen bug tests
+  Infrastructure/         temp-CWD sandbox, fakes, fixture builders, in-memory host
+  Models/ Services/ Controllers/ Security/    unit tests, mirroring the API's folders
+  Integration/            whole app in memory via WebApplicationFactory (covers Program.cs)
+.config/dotnet-tools.json ReportGenerator, pinned as a local tool
 ```
 
 ## Design, in one paragraph
@@ -86,10 +99,20 @@ declared `ActionResult<Reponse>`.
 ```bash
 dotnet build SurveyApp.slnx                       # builds clean: 0 errors, 11 nullable warnings
 dotnet run   --project SurveyApp                  # https://localhost:5192 (profile is named "http")
+
+dotnet test  SurveyApp.slnx                       # 82 tests, all green, ~1 s
+dotnet tool restore                               # ReportGenerator, pinned in .config/dotnet-tools.json
+dotnet test SurveyApp.slnx --collect:"XPlat Code Coverage"
+dotnet reportgenerator -reports:"SurveyApp.Tests/TestResults/**/coverage.cobertura.xml" \
+  -targetdir:"CoverageReport" -reporttypes:"Html;TextSummary;Badges"
 ```
 
-There is no `dotnet test` — livrable 5 has no project to run. There is no `global.json`, so the
-build floats on whatever SDK is installed.
+The tests redirect the process working directory to a throwaway sandbox before the host starts,
+so `dotnet test` never touches the repo's own `Data/` files despite `Program.cs` truncating them
+at startup. Delete `SurveyApp.Tests/TestResults/` before re-measuring — ReportGenerator merges
+every `coverage.cobertura.xml` it finds, including stale ones.
+
+There is no `global.json`, so the build floats on whatever SDK is installed.
 
 `Program.cs` **truncates `Data/participants.json` and `Data/reponsesRecues.json` on every startup**,
 before `builder.Build()`. Any run wipes the previous run's data; `git checkout` restores both files
@@ -110,7 +133,7 @@ Compared against the same 11-row table Max's team uses.
 | 2 | OpenAPI via Swagger | **Done.** Swashbuckle 10.2.3, `SwaggerDoc` + `AddSecurityDefinition`/`AddSecurityRequirement` for the API key. `AddOpenApi()` is commented out. Dev-only |
 | 3 | Postman collection | **Not started.** `SurveyApp.http` exists but points at `http://localhost:5192`, which is not bound, and holds only two `GET /` stubs |
 | 4 | Participant authentication guaranteeing uniqueness | **Not met.** Dedup exists; authentication does not. Any caller can invent a `cleParticipant` and answer again — verified. See V-01 |
-| 5 | xUnit battery in the same solution, full coverage | **Not started.** No test project, no coverage tooling |
+| 5 | xUnit battery in the same solution, full coverage | **Done** (added 2026-09-17 at the other team's request). `SurveyApp.Tests`, 82 tests, 100% line and 100% branch (58/58) over the whole `SurveyApp` assembly, `Program.cs` included, no file exclusions. coverlet + ReportGenerator. Gap: no concurrency test — see `REVISION-SECURITE.md` §3 |
 | 6 | Security impact analysis | **Not started** |
 | 7 | In-code security mechanisms (NX/DEP, ASLR, CFG) | **Not started.** The `csproj` only disables trimming |
 | 8 | Obfuscation + configuration | **Not started** |

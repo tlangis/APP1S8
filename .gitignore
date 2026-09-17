@@ -509,3 +509,6 @@ $RECYCLE.BIN/
 # Livrable 5 - resultats de tests et rapport de couverture (regenerables)
 TestResults/
 coverage.cobertura.xml
+
+# Rapport de couverture genere par ReportGenerator (livrable 5)
+CoverageReport/

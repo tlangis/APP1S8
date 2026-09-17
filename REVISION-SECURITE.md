@@ -317,7 +317,7 @@ Deux remarques sur le même bloc :
   la casse, `x-api-key` fonctionne (*vérifié*). Incohérence cosmétique, pas une faille — mais autant
   extraire une constante partagée.
 
-#### V-09 · **Moyenne** · `NullReferenceException` si `ApiKey` est absente *(lecture)*
+#### V-09 · **Moyenne** · `NullReferenceException` si `ApiKey` est absente *(vérifié)*
 
 `Security/ClefAPIAuthz.cs:22-25` — avertissement du compilateur **CS8602** :
 
@@ -335,6 +335,9 @@ l'application refuse de démarrer si le secret manque ou est trop court. Le méc
 plateforme est un objet d'options avec `ValidateOnStart()`. C'est aussi le bon endroit pour imposer
 une longueur minimale (V-04). Une application qui ne démarre pas est un incident visible ; une
 application qui répond 500 à chaque requête est un incident qu'on découvre en production.
+
+*Reproduit par `SurveyApp.Tests` :
+`ClefAPIAuthzTests.InvokeAsync_ClefNonConfiguree_LeveNullReference`.*
 
 #### V-10 · **Moyenne** · HTTPS non réellement forcé ; pas de HSTS *(vérifié)*
 
@@ -593,7 +596,7 @@ l'interface Swagger et le document JSON sont accessibles **sans clé d'API**. Le
 Development, ce qui est défendable — mais c'est un choix à assumer explicitement dans le requis 6
 plutôt qu'à laisser découvrir.
 
-#### A-09 · Analyse de `sondage.txt` sans validation *(lecture)*
+#### A-09 · Analyse de `sondage.txt` sans validation *(vérifié)*
 
 `Services/ServiceSondage.cs:104-150`
 
@@ -617,6 +620,14 @@ un sondage met l'API à terre. Surtout, c'est l'exemple type de ce que le cours 
 une entrée sans valider sa forme**. Le jour où ce fichier devient téléversable par un administrateur,
 c'est une faille. Un format structuré (JSON) supprimerait l'analyseur entier, ou à défaut
 `TryParse` + vérification des longueurs, avec un échec au démarrage plutôt qu'à la requête.
+
+*Les trois modes de défaillance sont désormais reproduits par `SurveyApp.Tests` :
+`GetSondage_ChoixSansDeuxPoints_LeveIndexOutOfRange`,
+`GetSondage_EnteteAvecNumeroNonEntier_LeveFormatException` et
+`GetSondage_QuestionAvantToutEntete_LeveInvalidOperation` — ce dernier n'était pas relevé
+plus haut : une ligne de question placée avant tout en-tête `Sondage` fait appeler
+`sondages.Last()` sur une liste vide. L'absence de `Data/sondage.txt` remonte de même une
+`FileNotFoundException` brute (`GetSondage_FichierAbsent_LeveUneException`).*
 
 #### A-10 · Avertissements, fichier mort, dépendance JSON en double *(vérifié)*
 
@@ -648,19 +659,33 @@ Deux points connexes :
 
 ## 3. Requis non entamés — points d'entrée concrets
 
-Requis 3, 5, 6, 7, 8, 9, 10 et 11 n'ont rien dans le dépôt. Ce ne sont pas des failles, mais c'est là
+Requis 3, 6, 7, 8, 9, 10 et 11 n'ont rien dans le dépôt. Ce ne sont pas des failles, mais c'est là
 que se trouve le plus de points disponibles — environ la moitié de la note est documentaire.
+
+Le requis 5 est **livré** depuis le 2026-09-17 : projet `SurveyApp.Tests` dans `SurveyApp.slnx`,
+82 tests, **100 % de couverture de branche** (58/58) mesurée par coverlet et présentée par
+ReportGenerator. Voir `SurveyApp.Tests/README.md`. Une limite subsiste, notée ci-dessous.
 
 | # | Requis | Point d'entrée le plus court |
 | --- | --- | --- |
 | 3 | Collection Postman liée au schéma OpenAPI | Importer `/swagger/v1/swagger.json` dans Postman plutôt que composer les requêtes à la main. Corriger A-07 d'abord, et vérifier la question 3.0 / 3.1 |
-| 5 | Batterie xUnit dans la même solution | Ajouter un projet `net10.0` à `SurveyApp.slnx` avec un `ProjectReference`. `WebApplicationFactory<Program>` exerce le vrai pipeline, donc `ClefAPIAuthz` et la logique d'unicité sont réellement couverts. **Inclure un test de concurrence** : c'est le seul moyen de démontrer V-02 |
+| 5 | ~~Batterie xUnit dans la même solution~~ **Fait** | `SurveyApp.Tests`, 82 tests, 100 % ligne et branche, `Program.cs` compris. Reste à faire : **un test de concurrence**, seul moyen de démontrer V-02 — volontairement absent car il serait non déterministe tant que V-02 n'est pas corrigé (voir plus bas) |
 | 6 | Analyse d'impact et vecteurs d'attaque | Les sections 1 et 2 de ce document sont directement réutilisables. Ordonner par couple *probabilité × impact*, et nommer explicitement V-01, V-02, V-04, V-07 |
 | 7 | Mécanismes de sécurité dans le code | Propriétés du `csproj` et options de l'éditeur de liens : DEP/NX, ASLR haute entropie, Control Flow Guard. Y ajouter le durcissement de compilation : `<TreatWarningsAsErrors>`, `<EnableNETAnalyzers>`, `<AnalysisMode>All</AnalysisMode>` |
 | 8 | Obfuscation + configuration utilisée | Un outil (Obfuscar, par exemple) et son fichier de configuration versionné. **Prérequis : A-01** — publier les `.pdb` annule l'obfuscation |
 | 9 | Recommandations opérationnelles | Architecture cible : passerelle terminant TLS, secrets dans un coffre, base transactionnelle à la place des fichiers plats, journalisation centralisée, limitation de débit. V-02, V-04, V-11 et V-12 fournissent chacun un paragraphe |
 | 10 | SBOM CycloneDX | `dotnet CycloneDX` sur la solution. Le rapport sera d'autant plus court que A-10 aura retiré Newtonsoft.Json. À compléter par `dotnet list package --vulnerable --include-transitive` |
 | 11 | Processus de signalement et de publication | Un `SECURITY.md` à la racine : versions supportées, canal de signalement privé, délai de réponse, délai de divulgation. C'est le requis le moins coûteux du lot |
+
+**Sur le test de concurrence manquant.** Un test qui *démontre* V-02 doit affirmer que des
+soumissions simultanées se perdent — donc affirmer un comportement défectueux dont la
+manifestation dépend de l'ordonnancement. Sur une machine rapide, les requêtes peuvent se
+sérialiser et le test passerait à tort (c'est exactement ce que montre l'annexe : 25 processus
+`curl` distincts donnent 1 × 200 et 24 × 409, sans aucune erreur). L'ordre utile est donc :
+corriger V-02 d'abord — verrou ou base transactionnelle — **puis** ajouter un test de
+concurrence qui affirme la propriété *correcte* : « N participants distincts en parallèle
+⇒ exactement N réponses enregistrées, aucune 500 ». Ce test-là est déterministe, et il
+protège durablement la correction.
 
 ---
 
